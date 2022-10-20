@@ -1,19 +1,21 @@
 open GMain
 
 (* Utilities *)
-let write_iso iso disk () =
+let write_iso iso disk =
   Sys.command @@ Printf.sprintf "dd if=%s of=%s bs=1M status=progress" iso disk
 
-let execute_write ~combo ~column ~callback () =
+let execute_write ~(combo:GEdit.combo_box) ~column ~iso () =
   match combo#active_iter with
-  | None -> ()
+  | None -> -1
   | Some row ->
      let data = combo#model#get ~row ~column in
-     callback data
+     write_iso iso data
  
 let get_disks () =
-  let devdir = Array.to_list @@ Sys.readdir "/dev/" in
-  List.filter (fun l -> String.starts_with ~prefix:"sd" l) devdir
+  let dir = "/dev" in
+  Sys.readdir dir
+  |> Array.to_list
+  |> List.filter (fun f -> Unix.((stat @@ dir ^ "/" ^ f).st_kind = S_BLK))
 
 let alert_if_not_iso ~chooser () =
   let file_name = List.hd chooser#get_filenames in
@@ -44,28 +46,31 @@ let iso_chooser = GFile.chooser_button
                     ~show:true
                     ~packing:vbox#add ()
 
-let write_button = GButton.button
-               ~label:"Write to disk"
-               ~packing:vbox#add ()
-
 let (disks_combo, column) =
   let (model, column) = get_disks () |> GTree.store_of_list Gobject.Data.string in
-  let combo = GEdit.combo_box
-    ~model
-    ~wrap_width:3
-    ~packing:vbox#add ()
+  let combo =
+    GEdit.combo_box
+      ~model
+      ~wrap_width:1
+      ~packing:vbox#add ()
   in
   let cell = GTree.cell_renderer_pixbuf [ `WIDTH 16; `HEIGHT 16 ] in
   combo#set_active 1;
   combo#pack ~expand:true cell;
   combo, column
-  
+
+let write_button = GButton.button
+               ~label:"Write to disk"
+               ~packing:vbox#add ()
+
 let main () =
   let _ = window#connect#destroy ~callback:Main.quit in
-  let _ = write_button#connect#clicked ~callback:(execute_write
-                                                    ~combo:disks_combo
-                                                    ~column
-                                                    ~callback:(write_iso (List.hd iso_chooser#get_filenames)))
+  let _ = write_button#connect#clicked
+            ~callback:(fun () -> ignore @@
+                                   execute_write
+                                     ~combo:disks_combo
+                                     ~column
+                                     ~iso:(List.hd iso_chooser#get_filenames) ())
   in
   let _ = iso_chooser#connect#selection_changed
             ~callback:(alert_if_not_iso ~chooser:iso_chooser)
