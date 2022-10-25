@@ -4,7 +4,7 @@ open GMain
 let write_iso iso disk =
   Sys.command @@ Printf.sprintf "dd if=%s of=%s bs=1M status=progress" iso disk
 
-let execute_write ~(combo:GEdit.combo_box) ~column ~iso () =
+let execute_write ~(combo : GEdit.combo_box) ~column ~iso () =
   match combo#active_iter with
   | None -> -1
   | Some row ->
@@ -46,18 +46,13 @@ let iso_chooser = GFile.chooser_button
                     ~show:true
                     ~packing:vbox#add ()
 
-let (disks_combo, column) =
-  let (model, column) = get_disks () |> GTree.store_of_list Gobject.Data.string in
-  let combo =
-    GEdit.combo_box
-      ~model
-      ~wrap_width:1
-      ~packing:vbox#add ()
-  in
-  let cell = GTree.cell_renderer_pixbuf [ `WIDTH 16; `HEIGHT 16 ] in
-  combo#set_active 1;
-  combo#pack ~expand:true cell;
-  combo, column
+let (combo, column) =
+  let strings = get_disks () in
+  let (combo, (_, column)) = GEdit.combo_box_text
+    ~strings
+    ~wrap_width:1
+    ~packing:vbox#add ()
+  in combo, column
 
 let write_button = GButton.button
                ~label:"Write to disk"
@@ -68,7 +63,7 @@ let main () =
   let _ = write_button#connect#clicked
             ~callback:(fun () -> ignore @@
                                    execute_write
-                                     ~combo:disks_combo
+                                     ~combo:combo
                                      ~column
                                      ~iso:(List.hd iso_chooser#get_filenames) ())
   in
